@@ -106,20 +106,112 @@ app.get('/api/load', async (req, res) => {
 
 // AI Generation
 app.post('/api/generate-pet', async (req, res) => {
-  const { element, stage, tribe } = req.body;
+... (existing code) ...
+});
+
+// === PvP Endpoints ===
+
+// Create PvP Room
+app.post('/api/pvp/create', async (req, res) => {
+  const { hostId, petData } = req.body;
   try {
-    const response = await client.chat.completions.create({
-      model: "gemini-1.5-pro",
-      messages: [
-        { role: "system", content: `You are a creative game designer. Generate a unique name, a special trait (short phrase), and a DETAILED physical description (in Thai) for a digital pet. Element: ${element}, Stage: ${stage}, Tribe: ${tribe}` },
-        { role: "user", content: "Generate JSON format: { \"name\": \"string\", \"trait\": \"string\", \"description\": \"string\" }" }
-      ],
-      response_format: { type: "json_object" }
-    });
-    res.json(JSON.parse(response.choices[0].message.content));
-  } catch (error) { 
-    console.error('[AI Error]', error);
-    res.status(500).json({ error: 'AI generation failed' }); 
+    const { data, error } = await supabase
+      .from('pvp_battles')
+      .insert([{
+        host_id: hostId,
+        host_pet: petData,
+        host_hp: petData.hp,
+        host_mp: 100,
+        current_turn: hostId,
+        status: 'waiting'
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json({ battleId: data.id });
+  } catch (error) {
+    console.error('[PvP Create Error]', error);
+    res.status(500).json({ error: 'Failed to create room' });
+  }
+});
+
+// Join PvP Room
+app.post('/api/pvp/join', async (req, res) => {
+  const { battleId, guestId, petData } = req.body;
+  try {
+    const { error } = await supabase
+      .from('pvp_battles')
+      .update({
+        guest_id: guestId,
+        guest_pet: petData,
+        guest_hp: petData.hp,
+        guest_mp: 100,
+        status: 'active'
+      })
+      .eq('id', battleId)
+      .eq('status', 'waiting');
+
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[PvP Join Error]', error);
+    res.status(500).json({ error: 'Failed to join room' });
+  }
+});
+
+// Get Battle Status
+app.get('/api/pvp/status/:id', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('pvp_battles')
+      .select('*')
+      .eq('id', req.params.id)
+      .single();
+
+    if (error) throw error;
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get status' });
+  }
+});
+
+// Submit Action
+app.post('/api/pvp/action', async (req, res) => {
+  const { battleId, userId, action, newState } = req.body;
+  try {
+    const { data: battle, error: fetchErr } = await supabase
+      .from('pvp_battles')
+      .select('*')
+      .eq('id', battleId)
+      .single();
+
+    if (fetchErr) throw fetchErr;
+    if (battle.current_turn !== userId) return res.status(403).json({ error: 'Not your turn' });
+
+    const nextTurn = userId === battle.host_id ? battle.guest_id : battle.host_id;
+    
+    const updateData = {
+      ...newState,
+      current_turn: nextTurn,
+      last_action: action,
+      updated_at: new Date().toISOString()
+    };
+
+    if (newState.status === 'finished') {
+      updateData.winner_id = newState.winner_id;
+    }
+
+    const { error: updErr } = await supabase
+      .from('pvp_battles')
+      .update(updateData)
+      .eq('id', battleId);
+
+    if (updErr) throw updErr;
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[PvP Action Error]', error);
+    res.status(500).json({ error: 'Action failed' });
   }
 });
 
