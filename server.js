@@ -234,7 +234,7 @@ const server = app.listen(port, () => {
     console.log(`[Supabase] Connected to: ${process.env.SUPABASE_URL}`);
 });
 
-<<<<<<< HEAD
+
 server.on('error', (e) => {
     if (e.code === 'EADDRINUSE') {
         console.error(`❌ Port ${port} is already in use. Retrying with a different port...`);
@@ -252,28 +252,29 @@ server.on('listening', () => {
     if (typeof addr !== 'string') {
         console.log(`[DigiPet Server] Successfully moved to port: ${addr.port}`);
     }
-=======
-const server = app.listen(port, () => {
-  console.log(`[DigiPet Server] Running on port: ${port}`);
-  console.log(`[Supabase] Connected to: ${process.env.SUPABASE_URL}`);
->>>>>>> a66f77b5e47de41a37c03c1157563bff6ff7a7f9
-});
 
-server.on('error', (e) => {
-  if (e.code === 'EADDRINUSE') {
-    console.error(`❌ Port ${port} is already in use. Retrying with a different port...`);
-    setTimeout(() => {
-      server.close();
-      server.listen(0); // Listen on a random available port
-    }, 1000);
-  } else {
-    console.error('[Server Error]', e);
-  }
-});
+    const server = app.listen(port, () => {
+        console.log(`[DigiPet Server] Running on port: ${port}`);
+        console.log(`[Supabase] Connected to: ${process.env.SUPABASE_URL}`);
 
-server.on('listening', () => {
-  const addr = server.address();
-  if (typeof addr !== 'string') {
-    console.log(`[DigiPet Server] Successfully moved to port: ${addr.port}`);
-  }
-});
+    });
+
+    server.on('error', (e) => {
+        if (e.code === 'EADDRINUSE') {
+            console.error(`❌ Port ${port} is already in use. Retrying with a different port...`);
+            setTimeout(() => {
+                server.close();
+                server.listen(0); // Listen on a random available port
+            }, 1000);
+        } else {
+            console.error('[Server Error]', e);
+        }
+    });
+
+    server.on('listening', () => {
+        const addr = server.address();
+        if (typeof addr !== 'string') {
+            console.log(`[DigiPet Server] Successfully moved to port: ${addr.port}`);
+        }
+    });
+}
