@@ -10,6 +10,10 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
 
+app.get('/', (req, res) => {
+  res.send('🐾 DigiPet Backend is running!');
+});
+
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const client = new OpenAI({ apiKey: process.env.KKU_AI_API_KEY, baseURL: process.env.KKU_AI_BASE_URL });
 
@@ -105,7 +109,7 @@ app.post('/api/generate-pet', async (req, res) => {
   const { element, stage, tribe } = req.body;
   try {
     const response = await client.chat.completions.create({
-      model: "gemini-1.5-pro", // Updated to a more standard model name if needed, but keeping user's intent
+      model: "gemini-1.5-pro",
       messages: [
         { role: "system", content: `You are a creative game designer. Generate a unique name, a special trait (short phrase), and a DETAILED physical description (in Thai) for a digital pet. Element: ${element}, Stage: ${stage}, Tribe: ${tribe}` },
         { role: "user", content: "Generate JSON format: { \"name\": \"string\", \"trait\": \"string\", \"description\": \"string\" }" }
