@@ -106,7 +106,7 @@ app.get('/api/load', async (req, res) => {
 
 // AI Generation
 app.post('/api/generate-pet', async (req, res) => {
-... (existing code) ...
+
 });
 
 // === PvP Endpoints ===
