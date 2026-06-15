@@ -70,6 +70,28 @@ app.post('/api/save', async (req, res) => {
     res.status(500).json({ error: 'Save failed', details: error.message });
   }
 });
+app.post('/api/generate-pet', async (req, res) => {
+    const { element, stage, tribe } = req.body;
+    try {
+        const response = await client.chat.completions.create({
+            model: "gemini-1.5-pro",
+            messages: [
+                { role: "system", content: `You are a creative game designer. Generate a unique name, a special trait (short phrase), and a DETAILED physical description (in Thai) for a digital pet. Element: ${element}, Stage: ${stage}, Tribe: ${tribe}` },
+                { role: "user", content: "Generate JSON format: { \"name\": \"string\", \"trait\": \"string\", \"description\": \"string\" }" }
+            ],
+            response_format: { type: "json_object" }
+        });
+        res.json(JSON.parse(response.choices[0].message.content));
+    } catch (error) {
+        console.error('[AI Error]', error);
+        res.status(500).json({ error: 'AI generation failed' });
+    }
+});
+
+app.listen(port, () => {
+    console.log(`[DigiPet Server] Running on http://localhost:${port}`);
+    console.log(`[Supabase] Connected to: ${process.env.SUPABASE_URL}`);
+});
 
 // Load Game
 app.get('/api/load', async (req, res) => {
@@ -105,9 +127,7 @@ app.get('/api/load', async (req, res) => {
 });
 
 // AI Generation
-app.post('/api/generate-pet', async (req, res) => {
-
-});
+ 
 
 // === PvP Endpoints ===
 
