@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const http = require('http');
 const { OpenAI } = require('openai');
 const { createClient } = require('@supabase/supabase-js');
 
