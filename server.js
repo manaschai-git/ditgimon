@@ -109,7 +109,7 @@ app.post('/api/generate-pet', async (req, res) => {
     const { element, stage, tribe } = req.body;
     try {
         const response = await client.chat.completions.create({
-            model: "gemini-1.5-pro",
+            model: "gemini-3.5-flash",
             messages: [
                 { role: "system", content: `You are a creative game designer. Generate a unique name, a special trait (short phrase), and a DETAILED physical description (in Thai) for a digital pet. Element: ${element}, Stage: ${stage}, Tribe: ${tribe}` },
                 { role: "user", content: "Generate JSON format: { \"name\": \"string\", \"trait\": \"string\", \"description\": \"string\" }" }
