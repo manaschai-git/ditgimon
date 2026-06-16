@@ -124,6 +124,38 @@ app.post('/api/generate-pet', async (req, res) => {
     }
 });
 
+// AI Battle Simulation
+app.post('/api/battle/simulate', async (req, res) => {
+    const { playerPet, enemyPet } = req.body;
+    try {
+        const response = await client.chat.completions.create({
+            model: "gemini-1.5-flash",
+            messages: [
+                { 
+                    role: "system", 
+                    content: `You are an epic game battle narrator. Simulate a fight between two digital pets.
+                    Pet 1: ${playerPet.name} (${playerPet.el} element, ATK: ${playerPet.atk}, DEF: ${playerPet.def})
+                    Pet 2: ${enemyPet.name} (${enemyPet.el} element, ATK: ${enemyPet.atk}, DEF: ${enemyPet.def})
+                    
+                    Generate a 3-5 turn battle script in Thai. Each turn should have:
+                    1. "text": Description of the action (vivid and exciting).
+                    2. "dmg1": Damage dealt to Pet 1 (if any).
+                    3. "dmg2": Damage dealt to Pet 2 (if any).
+                    4. "icon": Emoji representing the move.
+                    
+                    The final turn must result in one pet winning.
+                    Return JSON format: { "script": [{ "text": string, "dmg1": number, "dmg2": number, "icon": string }], "winner": 1 or 2 }`
+                }
+            ],
+            response_format: { type: "json_object" }
+        });
+        res.json(JSON.parse(response.choices[0].message.content));
+    } catch (error) {
+        console.error('[Battle AI Error]', error);
+        res.status(500).json({ error: 'Battle simulation failed' });
+    }
+});
+
 // === PvP Endpoints ===
 
 // Create PvP Room
