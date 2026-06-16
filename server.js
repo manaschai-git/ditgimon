@@ -277,4 +277,4 @@ server.on('listening', () => {
             console.log(`[DigiPet Server] Successfully moved to port: ${addr.port}`);
         }
     });
-}
+});
