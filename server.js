@@ -181,12 +181,16 @@ app.post('/api/pvp/create', async (req, res) => {
     const { hostId, petData } = req.body;
     try {
         if (!hostId || !petData) throw new Error('Missing hostId or petData');
+        
+        // Ensure values are integers for the database
+        const hostHp = Math.floor(petData.hp || 100);
+
         const { data, error } = await supabase
             .from('pvp_battles')
             .insert([{
                 host_id: hostId,
                 host_pet: petData,
-                host_hp: petData.hp || 100,
+                host_hp: hostHp,
                 host_mp: 100,
                 current_turn: hostId,
                 status: 'waiting'
@@ -207,12 +211,16 @@ app.post('/api/pvp/join', async (req, res) => {
     const { battleId, guestId, petData } = req.body;
     try {
         if (!battleId || !guestId || !petData) throw new Error('Missing battleId, guestId or petData');
+        
+        // Ensure values are integers for the database
+        const guestHp = Math.floor(petData.hp || 100);
+
         const { error } = await supabase
             .from('pvp_battles')
             .update({
                 guest_id: guestId,
                 guest_pet: petData,
-                guest_hp: petData.hp || 100,
+                guest_hp: guestHp,
                 guest_mp: 100,
                 status: 'active'
             })
