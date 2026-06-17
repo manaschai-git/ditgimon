@@ -218,15 +218,21 @@ app.post('/api/pvp/join', async (req, res) => {
         // Find the full ID if a short code was provided
         let targetId = battleId;
         if (battleId.length === 7) {
-            const { data: battle, error: findError } = await supabase
+            console.log(`[PvP Join] Searching for short code: ${battleId}`);
+            const { data: battles, error: findError } = await supabase
                 .from('pvp_battles')
                 .select('id')
-                .ilike('id', `%${battleId.toLowerCase()}`)
-                .eq('status', 'waiting')
-                .single();
+                .eq('status', 'waiting');
             
-            if (findError || !battle) throw new Error('Room not found or no longer waiting');
+            if (findError) throw findError;
+            
+            const battle = battles.find(b => b.id.toUpperCase().endsWith(battleId.toUpperCase()));
+            if (!battle) {
+                console.log(`[PvP Join] Room not found for code: ${battleId}. Available IDs:`, battles?.map(b => b.id.slice(-7)));
+                throw new Error('Room not found or no longer waiting');
+            }
             targetId = battle.id;
+            console.log(`[PvP Join] Resolved code ${battleId} to UUID: ${targetId}`);
         }
 
         const { error } = await supabase
