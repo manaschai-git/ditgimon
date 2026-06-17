@@ -215,6 +215,20 @@ app.post('/api/pvp/join', async (req, res) => {
         // Ensure values are integers for the database
         const guestHp = Math.floor(petData.hp || 100);
 
+        // Find the full ID if a short code was provided
+        let targetId = battleId;
+        if (battleId.length === 7) {
+            const { data: battle, error: findError } = await supabase
+                .from('pvp_battles')
+                .select('id')
+                .ilike('id', `%${battleId.toLowerCase()}`)
+                .eq('status', 'waiting')
+                .single();
+            
+            if (findError || !battle) throw new Error('Room not found or no longer waiting');
+            targetId = battle.id;
+        }
+
         const { error } = await supabase
             .from('pvp_battles')
             .update({
@@ -224,11 +238,11 @@ app.post('/api/pvp/join', async (req, res) => {
                 guest_mp: 100,
                 status: 'active'
             })
-            .eq('id', battleId)
+            .eq('id', targetId)
             .eq('status', 'waiting');
 
         if (error) throw error;
-        res.json({ success: true });
+        res.json({ success: true, fullBattleId: targetId });
     } catch (error) {
         console.error('[PvP Join Error]', error);
         res.status(500).json({ error: 'Failed to join room', details: error.message });
