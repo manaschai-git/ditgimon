@@ -105,6 +105,24 @@ app.get('/api/load', async (req, res) => {
     }
 });
 
+// Delete Save
+app.post('/api/delete', async (req, res) => {
+    const { userId, slotIndex } = req.body;
+    try {
+        const { error } = await supabase
+            .from('game_saves')
+            .delete()
+            .eq('user_id', userId)
+            .eq('slot_index', slotIndex);
+
+        if (error) throw error;
+        res.json({ success: true });
+    } catch (error) {
+        console.error('[Delete Error]', error);
+        res.status(500).json({ error: 'Delete failed', details: error.message });
+    }
+});
+
 // AI Generation
 app.post('/api/generate-pet', async (req, res) => {
     const { element, stage, tribe } = req.body;
