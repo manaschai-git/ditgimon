@@ -20,7 +20,7 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
 // Google Gemini Initialization
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ 
-    model: "gemini-2.0-flash-lite-preview-02-05",
+    model: "gemini-3.1-flash-lite",
     generationConfig: { responseMimeType: "application/json" }
 });
 
