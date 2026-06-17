@@ -180,12 +180,13 @@ app.post('/api/battle/simulate', async (req, res) => {
 app.post('/api/pvp/create', async (req, res) => {
     const { hostId, petData } = req.body;
     try {
+        if (!hostId || !petData) throw new Error('Missing hostId or petData');
         const { data, error } = await supabase
             .from('pvp_battles')
             .insert([{
                 host_id: hostId,
                 host_pet: petData,
-                host_hp: petData.hp,
+                host_hp: petData.hp || 100,
                 host_mp: 100,
                 current_turn: hostId,
                 status: 'waiting'
@@ -197,7 +198,7 @@ app.post('/api/pvp/create', async (req, res) => {
         res.json({ battleId: data.id });
     } catch (error) {
         console.error('[PvP Create Error]', error);
-        res.status(500).json({ error: 'Failed to create room' });
+        res.status(500).json({ error: 'Failed to create room', details: error.message });
     }
 });
 
@@ -205,12 +206,13 @@ app.post('/api/pvp/create', async (req, res) => {
 app.post('/api/pvp/join', async (req, res) => {
     const { battleId, guestId, petData } = req.body;
     try {
+        if (!battleId || !guestId || !petData) throw new Error('Missing battleId, guestId or petData');
         const { error } = await supabase
             .from('pvp_battles')
             .update({
                 guest_id: guestId,
                 guest_pet: petData,
-                guest_hp: petData.hp,
+                guest_hp: petData.hp || 100,
                 guest_mp: 100,
                 status: 'active'
             })
@@ -221,7 +223,7 @@ app.post('/api/pvp/join', async (req, res) => {
         res.json({ success: true });
     } catch (error) {
         console.error('[PvP Join Error]', error);
-        res.status(500).json({ error: 'Failed to join room' });
+        res.status(500).json({ error: 'Failed to join room', details: error.message });
     }
 });
 
