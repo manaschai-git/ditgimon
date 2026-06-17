@@ -262,23 +262,53 @@ app.post('/api/pvp/action', async (req, res) => {
     }
 });
 
-// AI Image Generation (Returns Base64)
+// AI Image Generation (Handles KKU Binary Response -> Base64)
 app.post('/api/generate-image', async (req, res) => {
     const { prompt } = req.body;
     try {
-        // Standard OpenAI Image Gen API call
-        // If the KKU AI expects a different format, this should be adjusted.
-        // We use the same client configured with KKU baseURL/APIKey.
-        const response = await client.images.generate({
-            model: "dall-e-3", // Or whatever model the KKU service uses
-            prompt: prompt,
-            n: 1,
-            size: "1024x1024",
-            response_format: "b64_json" // Request Base64 directly from API if supported
-        });
+        console.log(`[Image AI] Generating for prompt: ${prompt}`);
         
-        const b64 = response.data[0].b64_json;
-        res.json({ base64: b64 });
+        // URL for Image Generation (OpenAI compatible)
+        const apiUrl = `${process.env.KKU_AI_BASE_URL}/images/generations`;
+        
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 
+              'Authorization': `Bearer ${process.env.KKU_AI_API_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              prompt: prompt,
+              n: 1,
+              size: "1024x1024"
+            })
+        });
+
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`KKU API Status ${response.status}: ${errText}`);
+        }
+
+        const contentType = response.headers.get('content-type') || '';
+        console.log(`[Image AI] Response Type: ${contentType}`);
+
+        if (contentType.includes('application/json')) {
+            const data = await response.json();
+            if (data.data?.[0]?.b64_json) return res.json({ base64: data.data[0].b64_json });
+            if (data.data?.[0]?.url) {
+                // If it returns a URL, fetch it and convert to base64
+                const imgResp = await fetch(data.data[0].url);
+                const buffer = await imgResp.arrayBuffer();
+                const b64 = Buffer.from(buffer).toString('base64');
+                return res.json({ base64: b64 });
+            }
+            throw new Error('Image data not found in JSON response');
+        } else {
+            // Raw binary data (Bytes) received
+            const buffer = await response.arrayBuffer();
+            const b64 = Buffer.from(buffer).toString('base64');
+            return res.json({ base64: b64 });
+        }
     } catch (error) {
         console.error('[Image AI Error]', error);
         res.status(500).json({ error: 'Image generation failed', details: error.message });
