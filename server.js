@@ -20,7 +20,7 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
 // Google Gemini Initialization
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ 
-    model: "gemini-3.1-flash-lite",
+    model: "gemini-2.0-flash-lite-preview-02-05",
     generationConfig: { responseMimeType: "application/json" }
 });
 
@@ -308,53 +308,74 @@ app.post('/api/pvp/action', async (req, res) => {
     }
 });
 
-// AI Image Generation (Handles KKU Binary Response -> Base64)
+// AI Image Generation (Fallback to SVG if primary fails, or as requested)
 app.post('/api/generate-image', async (req, res) => {
-    const { prompt } = req.body;
+    const { prompt, element, tribe, trait, stage } = req.body;
+    
+    // Check if we should use SVG (Text-to-Image) approach
+    // We'll try SVG first or as a reliable alternative if the primary API is unstable
+    const useSvg = req.query.mode === 'svg' || !process.env.KKU_AI_API_KEY;
+
     try {
-        console.log(`[Image AI] Generating for prompt: ${prompt}`);
-        
-        // URL for Image Generation (OpenAI compatible)
-        const apiUrl = `${process.env.KKU_AI_BASE_URL}/images/generations`;
-        
-        const response = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 
-              'Authorization': `Bearer ${process.env.KKU_AI_API_KEY}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              prompt: prompt,
-              n: 1,
-              size: "1024x1024"
-            })
-        });
+        if (!useSvg) {
+            console.log(`[Image AI] Generating via Image API: ${prompt}`);
+            const apiUrl = `${process.env.KKU_AI_BASE_URL}/images/generations`;
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 
+                  'Authorization': `Bearer ${process.env.KKU_AI_API_KEY}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ prompt: prompt, n: 1, size: "1024x1024" })
+            });
 
-        if (!response.ok) {
-            const errText = await response.text();
-            throw new Error(`KKU API Status ${response.status}: ${errText}`);
-        }
-
-        const contentType = response.headers.get('content-type') || '';
-        console.log(`[Image AI] Response Type: ${contentType}`);
-
-        if (contentType.includes('application/json')) {
-            const data = await response.json();
-            if (data.data?.[0]?.b64_json) return res.json({ base64: data.data[0].b64_json });
-            if (data.data?.[0]?.url) {
-                // If it returns a URL, fetch it and convert to base64
-                const imgResp = await fetch(data.data[0].url);
-                const buffer = await imgResp.arrayBuffer();
-                const b64 = Buffer.from(buffer).toString('base64');
-                return res.json({ base64: b64 });
+            if (response.ok) {
+                const contentType = response.headers.get('content-type') || '';
+                if (contentType.includes('application/json')) {
+                    const data = await response.json();
+                    if (data.data?.[0]?.b64_json) return res.json({ base64: data.data[0].b64_json });
+                    if (data.data?.[0]?.url) {
+                        const imgResp = await fetch(data.data[0].url);
+                        const buffer = await imgResp.arrayBuffer();
+                        return res.json({ base64: Buffer.from(buffer).toString('base64') });
+                    }
+                } else {
+                    const buffer = await response.arrayBuffer();
+                    return res.json({ base64: Buffer.from(buffer).toString('base64') });
+                }
             }
-            throw new Error('Image data not found in JSON response');
-        } else {
-            // Raw binary data (Bytes) received
-            const buffer = await response.arrayBuffer();
-            const b64 = Buffer.from(buffer).toString('base64');
-            return res.json({ base64: b64 });
+            console.warn(`[Image AI] Primary API failed or not configured, falling back to SVG.`);
         }
+
+        // --- SVG Approach (Text-to-Image) ---
+        console.log(`[Image AI] Generating SVG for: ${prompt}`);
+        const svgPrompt = `You are a talented SVG artist. Create a cute, high-quality, flat-design SVG illustration of a digital pet.
+            Element: ${element || 'unknown'}, Stage: ${stage || 'Adult'}, Tribe: ${tribe || 'unknown'}, Trait: ${trait || 'none'}.
+            Physical Description: ${prompt}.
+            
+            Technical Requirements:
+            1. Use a square viewBox="0 0 100 100".
+            2. The pet must be centered and fill about 80% of the canvas.
+            3. Use vibrant colors matching the element.
+            4. Keep it clean and stylized (like a modern icon or game character).
+            5. No background (transparent).
+            
+            Return ONLY a valid JSON object: { "svg": "<svg.../svg>" }`;
+
+        const result = await model.generateContent(svgPrompt);
+        const response = await result.response;
+        const text = response.text().trim();
+        
+        // Clean markdown if AI included it
+        const jsonStr = text.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+        const data = JSON.parse(jsonStr);
+        
+        if (data.svg) {
+            res.json({ svg: data.svg });
+        } else {
+            throw new Error('SVG not found in AI response');
+        }
+
     } catch (error) {
         console.error('[Image AI Error]', error);
         res.status(500).json({ error: 'Image generation failed', details: error.message });
