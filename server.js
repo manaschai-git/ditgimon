@@ -262,6 +262,29 @@ app.post('/api/pvp/action', async (req, res) => {
     }
 });
 
+// AI Image Generation (Returns Base64)
+app.post('/api/generate-image', async (req, res) => {
+    const { prompt } = req.body;
+    try {
+        // Standard OpenAI Image Gen API call
+        // If the KKU AI expects a different format, this should be adjusted.
+        // We use the same client configured with KKU baseURL/APIKey.
+        const response = await client.images.generate({
+            model: "dall-e-3", // Or whatever model the KKU service uses
+            prompt: prompt,
+            n: 1,
+            size: "1024x1024",
+            response_format: "b64_json" // Request Base64 directly from API if supported
+        });
+        
+        const b64 = response.data[0].b64_json;
+        res.json({ base64: b64 });
+    } catch (error) {
+        console.error('[Image AI Error]', error);
+        res.status(500).json({ error: 'Image generation failed', details: error.message });
+    }
+});
+
 const server = http.createServer(app);
 
 server.on('error', (e) => {
