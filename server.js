@@ -3,7 +3,6 @@ const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const { OpenAI } = require('openai');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
@@ -17,12 +16,24 @@ app.get('/', (req, res) => {
 });
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-// Google Gemini Initialization
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ 
-    model: "gemini-2.5-flash-lite",
-    generationConfig: { responseMimeType: "application/json" }
+
+// AI Initialization (Using KKU AI API via OpenAI SDK)
+const openai = new OpenAI({
+    apiKey: process.env.KKU_AI_API_KEY,
+    baseURL: process.env.KKU_AI_BASE_URL
 });
+const AI_MODEL = "gemini-3.5-flash";
+
+// Helper for Robust JSON Parsing from AI
+function parseAIJSON(text) {
+    try {
+        const jsonStr = text.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
+        return JSON.parse(jsonStr);
+    } catch (e) {
+        console.error('[JSON Parse Error] Raw text:', text);
+        throw new Error('AI returned invalid JSON');
+    }
+}
 
 // Auth - Identify or Register
 app.get('/api/auth/identify', async (req, res) => {
@@ -131,14 +142,18 @@ app.post('/api/delete', async (req, res) => {
 
 // AI Generation
 app.post('/api/generate-pet', async (req, res) => {
-    const { element, stage, tribe } = req.body;
+    const { element, stage, tribe, prompt: customPrompt } = req.body;
     try {
-        const prompt = `You are a creative game designer. Generate a unique name, a special trait (short phrase), and a DETAILED physical description (in Thai) for a digital pet. Element: ${element}, Stage: ${stage}, Tribe: ${tribe}. Return JSON format: { "name": "string", "trait": "string", "description": "string" }`;
+        const prompt = customPrompt || `You are a creative game designer. Generate a unique name, a special trait (short phrase), and a DETAILED physical description (in Thai) for a digital pet. Element: ${element}, Stage: ${stage}, Tribe: ${tribe}. Return JSON format: { "name": "string", "trait": "string", "description": "string" }`;
         
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
-        res.json(JSON.parse(text));
+        const response = await openai.chat.completions.create({
+            model: AI_MODEL,
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" }
+        });
+        
+        const text = response.choices[0].message.content;
+        res.json(parseAIJSON(text));
     } catch (error) {
         console.error('[AI Error]', error);
         res.status(500).json({ error: 'AI generation failed', details: error.message });
@@ -162,10 +177,14 @@ app.post('/api/battle/simulate', async (req, res) => {
                     The final turn must result in one pet winning.
                     Return JSON format: { "script": [{ "text": string, "dmg1": number, "dmg2": number, "icon": string }], "winner": 1 or 2 }`;
         
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
-        res.json(JSON.parse(text));
+        const response = await openai.chat.completions.create({
+            model: AI_MODEL,
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" }
+        });
+
+        const text = response.choices[0].message.content;
+        res.json(parseAIJSON(text));
     } catch (error) {
         console.error('[Battle AI Error]', error);
         res.status(500).json({ error: 'Battle simulation failed', details: error.message });
@@ -362,13 +381,14 @@ app.post('/api/generate-image', async (req, res) => {
             
             Return ONLY a valid JSON object: { "svg": "<svg.../svg>" }`;
 
-        const result = await model.generateContent(svgPrompt);
-        const response = await result.response;
-        const text = response.text().trim();
-        
-        // Clean markdown if AI included it
-        const jsonStr = text.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-        const data = JSON.parse(jsonStr);
+        const response = await openai.chat.completions.create({
+            model: AI_MODEL,
+            messages: [{ role: "user", content: svgPrompt }],
+            response_format: { type: "json_object" }
+        });
+
+        const text = response.choices[0].message.content;
+        const data = parseAIJSON(text);
         
         if (data.svg) {
             res.json({ svg: data.svg });
