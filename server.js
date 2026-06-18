@@ -402,6 +402,58 @@ app.post('/api/generate-image', async (req, res) => {
     }
 });
 
+// Get Global Pet Library
+app.get('/api/library', async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('pet_library')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        res.json({ library: data });
+    } catch (error) {
+        console.error('[Library Fetch Error]', error);
+        res.status(500).json({ error: 'Failed to fetch library' });
+    }
+});
+
+// Register Pet to Global Library
+app.post('/api/library/register', async (req, res) => {
+    const { pet } = req.body;
+    try {
+        if (!pet || !pet.name) throw new Error('Missing pet data');
+
+        const { error } = await supabase
+            .from('pet_library')
+            .upsert({
+                uid: pet.uid,
+                name: pet.name,
+                image_base64: pet.customImg || null,
+                stage: pet.stage,
+                element: pet.el || pet.element,
+                tribe: pet.tb || pet.tribe,
+                rarity: pet.rar || pet.rarity,
+                trait: pet.trait,
+                description: pet.description,
+                lv: pet.lv || 1,
+                atk: pet.atk,
+                def: pet.def,
+                spd: pet.spd,
+                int: pet.int,
+                hp: pet.mhp || pet.hp,
+                skills: pet.skills || [],
+                discovered_by: pet.owner || 'Unknown'
+            }, { onConflict: 'uid' });
+
+        if (error) throw error;
+        res.json({ success: true });
+    } catch (error) {
+        console.error('[Library Register Error]', error);
+        res.status(500).json({ error: 'Failed to register pet', details: error.message });
+    }
+});
+
 const server = http.createServer(app);
 
 server.on('error', (e) => {
