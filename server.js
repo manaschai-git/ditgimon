@@ -454,6 +454,66 @@ app.post('/api/library/register', async (req, res) => {
     }
 });
 
+// AI Pet Diary Generation
+app.post('/api/diary/generate', async (req, res) => {
+    const { pet, events } = req.body;
+    try {
+        if (!pet) throw new Error('Missing pet data');
+        
+        const prompt = `You are a digital pet named ${pet.name}. Your personality is ${pet.personality}.
+            Current Status: Level ${pet.lv}, Stage ${pet.stage}, Mood: ${pet.mood || 'Normal'}.
+            Recent Events: ${events || 'Just relaxing'}.
+            
+            Write a short diary entry in Thai (1-2 sentences) about your day.
+            Make it sound like your personality.
+            Return JSON format: { "content": "string", "mood_emoji": "string" }`;
+
+        const response = await openai.chat.completions.create({
+            model: AI_MODEL,
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" }
+        });
+
+        const text = response.choices[0].message.content;
+        const diaryData = parseAIJSON(text);
+
+        // Save to Supabase
+        const { data, error } = await supabase
+            .from('pet_diaries')
+            .insert({
+                pet_uid: pet.uid,
+                content: diaryData.content,
+                mood_emoji: diaryData.mood_emoji,
+                events_snapshot: events
+            })
+            .select();
+
+        if (error) throw error;
+        res.json({ diary: data[0] });
+    } catch (error) {
+        console.error('[Diary Error]', error);
+        res.status(500).json({ error: 'Failed to generate diary', details: error.message });
+    }
+});
+
+// List Diary Entries
+app.get('/api/diary/list/:uid', async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('pet_diaries')
+            .select('*')
+            .eq('pet_uid', req.params.uid)
+            .order('created_at', { ascending: false })
+            .limit(10);
+
+        if (error) throw error;
+        res.json({ diaries: data });
+    } catch (error) {
+        console.error('[Diary Fetch Error]', error);
+        res.status(500).json({ error: 'Failed to fetch diaries' });
+    }
+});
+
 const server = http.createServer(app);
 
 server.on('error', (e) => {
